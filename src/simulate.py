@@ -5,10 +5,12 @@ import pandas as pd
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import adjusted_rand_score
 
 from models import hb, add_const
 from segments import latent_class, lc_assign
 from optimize import profile_matrix, best_single, best_line, line_revenue, targeted_revenue, oracle_revenue
+from experiment import repeated_cv
 
 
 def calibrate(R, X, K=3, seed=0):
@@ -46,7 +48,7 @@ def posterior_partworths(R, X, mu, Sigma, s2):
     return (R @ Z / s2 + Sinv @ mu) @ cov
 
 
-def run_rep(cal, X, n, sep, within, Ks=(2, 3), n_eval=1000, seed=0):
+def run_rep(cal, X, n, sep, within, Ks=(2, 3), n_eval=1000, seed=0, return_sample=False):
     rng = np.random.default_rng(seed)
     _, Zp, p = profile_matrix()
 
@@ -86,6 +88,8 @@ def run_rep(cal, X, n, sep, within, Ks=(2, 3), n_eval=1000, seed=0):
         km = KMeans(K, n_init=5, random_state=seed).fit(sc.transform(B_eval[:, 1:]))
         prods = [best_single(U_eval[km.labels_ == k], p) for k in range(K)]
         out[f"targeted {K} potential"] = targeted_revenue(U_eval, p, km.labels_, prods) / n_eval
+    if return_sample:
+        return out, R, B_hat
     return out
 
 
@@ -106,5 +110,59 @@ def run_grid(cal, X, sizes, n_reps, structures=STRUCTURES, seed=0):
             for r in range(n_reps):
                 row = run_rep(cal, X, n, sep, within, seed=seed + 1000 * r + n)
                 row.update({"structure": name, "n": n, "rep": r})
+                rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def firm_statistics(R, X, B_hat, K=3, seed=0):
+    """Everything the firm can compute from its own sample, without knowing the truth."""
+    n = len(R)
+    _, Zp, p = profile_matrix()
+    st = {}
+
+    bic = {k: latent_class(R, X, k, n_starts=5, seed=seed)["bic"] for k in range(1, 5)}
+    st["bic K"] = min(bic, key=bic.get)
+    st["bic gain per respondent"] = (bic[1] - bic[K]) / n
+
+    lc = latent_class(R, X, K, n_starts=5, seed=seed)
+    st["entropy r2"] = 1 + (lc["post"] * np.log(lc["post"] + 1e-300)).sum() / (n * np.log(K))
+
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(n)
+    a = latent_class(R[perm[: n // 2]], X, K, n_starts=5, seed=seed)
+    b = latent_class(R[perm[n // 2:]], X, K, n_starts=5, seed=seed + 1)
+    st["split-half ari"] = adjusted_rand_score(lc_assign(R, X, a).argmax(1), lc_assign(R, X, b).argmax(1))
+
+    S = StandardScaler().fit_transform(B_hat[:, 1:])
+    km = KMeans(K, n_init=5, random_state=seed).fit(S)
+    st["k-means between share"] = 1 - km.inertia_ / (S ** 2).sum()
+
+    U = B_hat @ Zp.T
+    mass = line_revenue(U, p, [best_single(U, p)])
+    prods = [best_single(U[lc["labels"] == k], p) for k in range(K)]
+    st["in-sample gain targeted"] = targeted_revenue(U, p, lc["labels"], prods) / mass - 1
+    st["in-sample gain line"] = line_revenue(U, p, best_line(U, p, K, n_starts=3, seed=seed)) / mass - 1
+
+    cv = pd.DataFrame(repeated_cv(R, X, B_hat, Ks=[1, K], n_reps=1, seed=seed))
+    cv = cv[cv["method"].isin(["-", "LC"])]
+    r = cv.groupby("strategy")["realized"].mean()
+    st["cv gain targeted"] = r["targeted"] / r["mass market"] - 1
+    st["cv gain line"] = r["optimal line"] / r["mass market"] - 1
+    return st
+
+
+def run_decision_grid(cal, X, sizes, n_reps, structures=STRUCTURES, K=3, seed=0):
+    warnings.filterwarnings("ignore", category=ConvergenceWarning)
+    rows = []
+    for name, (sep, within) in structures.items():
+        for n in sizes:
+            for r in range(n_reps):
+                s = seed + 1000 * r + n + 7
+                out, R, B_hat = run_rep(cal, X, n, sep, within, Ks=(K,), seed=s, return_sample=True)
+                row = {"structure": name, "n": n, "rep": r,
+                       "mass": out["mass realized"],
+                       "targeted": out[f"targeted LC{K} realized"],
+                       "line": out[f"line{K} realized"]}
+                row.update(firm_statistics(R, X, B_hat, K, seed=s))
                 rows.append(row)
     return pd.DataFrame(rows)

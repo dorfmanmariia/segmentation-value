@@ -18,6 +18,7 @@ The data come from a course and can't be shared. To run the code, put `design.cs
 4. [Revenue](notebooks/04_revenue.ipynb): mass market vs targeted segment products vs an optimal product line, evaluated out of sample with repeated cross-validation over respondents.
 5. [Simulation](notebooks/05_simulation.ipynb): markets calibrated to the data with different heterogeneity structures and sample sizes (400 simulated markets).
 6. [Robustness](notebooks/06_robustness.ipynb): other demand rules and whether segments replicate in the second (offline) measurement.
+7. [Decision rules](notebooks/07_decision.ipynb): can the firm tell from its own survey whether to segment? Rules based on BIC, in-sample revenue, internal cross-validation and a regression trained on simulated markets (tested on market types left out of training).
 
 Demand rule: a consumer buys the offered bag with the highest predicted rating if this rating is at least 3. Revenue is per consumer.
 
@@ -41,6 +42,10 @@ With known preferences, targeting would gain 1-7%. Most of this is lost because 
 
 ![Simulation results](figures/simulation.png)
 
+**Deciding to segment because the segmentation model fits better is costly.** In the simulated markets, a firm that targets segments whenever BIC prefers more than one segment loses 4.5% of revenue on average compared with the best strategy. Choosing by revenue on its own sample (0.7%) or by internal cross-validation (1.1%) avoids most of this, and simply always offering a product line loses only 0.4%. On the real data, the BIC rule recommends targeting, which loses about 4% out of sample, while the revenue-based rules recommend the line.
+
+![Decision rules](figures/decision.png)
+
 **Robustness.** The same pattern holds with a purchase threshold of 4 and with a smooth purchase probability instead of a hard cutoff. Segments found in the online ratings replicate poorly in the offline ratings of the same people (adjusted Rand index 0.4-0.5 for 2 segments, about 0.2 for 3-4).
 
 ## Run
@@ -49,7 +54,7 @@ With known preferences, targeting would gain 1-7%. Most of this is lost because 
 pip install -r requirements.txt
 ```
 
-Then run the notebooks in order. Notebook 5 loads `results/simulation.csv`; without it the simulation takes about 20 minutes.
+Then run the notebooks in order. Notebooks 5 and 7 load `results/simulation.csv` and `results/decision.csv`; without them the simulations take about 20 and 45 minutes.
 
 ## Structure
 
