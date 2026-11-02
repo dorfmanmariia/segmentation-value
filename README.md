@@ -19,6 +19,7 @@ The data come from a course and can't be shared. The simulation results are save
 5. [Simulation](notebooks/05_simulation.ipynb): markets calibrated to the data with different heterogeneity structures and sample sizes (400 simulated markets).
 6. [Robustness](notebooks/06_robustness.ipynb): other demand rules and whether segments replicate in the second (offline) measurement.
 7. [Decision rules](notebooks/07_decision.ipynb): can the firm tell from its own survey whether to segment? Rules based on BIC, in-sample revenue, internal cross-validation and a regression trained on simulated markets (tested on market types left out of training).
+8. [Report](Segmentation.pdf): the paper text
 
 Demand rule: a consumer buys the offered bag with the highest predicted rating if this rating is at least 3. Revenue is per consumer.
 
