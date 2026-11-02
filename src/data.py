@@ -23,20 +23,15 @@ def load_data(path="../data"):
 
 
 def encode(design):
-    # price goes from -0.5 ($120) to 0.5 ($180), so its coefficient is the effect of moving
-    # from the lowest to the highest price; other attributes are dummy coded (first level is the base)
+    # price in dollars, other attributes dummy coded (first level is the base)
     X = pd.DataFrame(index=design.index)
-    X["price"] = (prices(design) - 150) / 60
+    X["price"] = design["price"].map(lambda x: LEVELS["price"][x - 1])
     for a in ATTRS:
         if a == "price":
             continue
         for i, level in enumerate(LEVELS[a][1:], start=2):
             X[f"{a}_{level}"] = (design[a] == i).astype(int)
     return X
-
-
-def prices(design):
-    return design["price"].map(lambda x: LEVELS["price"][x - 1]).to_numpy()
 
 
 def all_profiles():
