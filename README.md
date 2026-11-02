@@ -8,7 +8,7 @@ I look at this with a ratings-based conjoint study on messenger bags and with si
 
 122 respondents rated the same 20 messenger bags on a 1-5 scale ("definitely would not buy" to "definitely would buy"). Bags differ in 6 attributes: exterior (black, reflective, colorful, blue), size (small, large), price ($120-$180), strap pad, water bottle pocket and interior (no dividers, file divider, padded laptop compartment). The same respondents rated the bags a second time offline.
 
-The data come from a course and can't be shared. To run the code, put `design.csv`, `responses_online.csv` and `responses_offline.csv` into `data/`. The simulation results are saved in `results/simulation.csv`.
+The data come from a course and can't be shared. The simulation results are saved in `results/simulation.csv`.
 
 ## What I did
 
