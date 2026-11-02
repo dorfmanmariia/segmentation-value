@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler
 
 from models import hb
 from segments import latent_class, lc_assign
-from optimize import profile_matrix, best_single, best_line, line_revenue, targeted_revenue, oracle_revenue
+from optimize import THRESHOLD, profile_matrix, best_single, best_line, line_revenue, targeted_revenue, oracle_revenue
 
 
 def segment_labels(method, K, R_fit, B_fit, X, R_new, B_new, seed=0):
@@ -19,19 +19,19 @@ def segment_labels(method, K, R_fit, B_fit, X, R_new, B_new, seed=0):
     return km.labels_, km.predict(scaler.transform(B_new[:, 1:]))
 
 
-def strategies(U_fit, labels_fit, U_eval, labels_eval, p, K, seed=0):
+def strategies(U_fit, labels_fit, U_eval, labels_eval, p, K, demand=THRESHOLD, seed=0):
     """Products are chosen with U_fit and evaluated with U_eval. Returns revenue per consumer."""
     n = len(U_eval)
-    seg_products = [best_single(U_fit[labels_fit == k], p) for k in range(K)]
-    line = best_line(U_fit, p, K, seed=seed)
+    seg_products = [best_single(U_fit[labels_fit == k], p, demand) for k in range(K)]
+    line = best_line(U_fit, p, K, demand, seed=seed)
     return {
-        "targeted": targeted_revenue(U_eval, p, labels_eval, seg_products) / n,
-        "segment products, open": line_revenue(U_eval, p, seg_products) / n,
-        "optimal line": line_revenue(U_eval, p, line) / n,
+        "targeted": targeted_revenue(U_eval, p, labels_eval, seg_products, demand) / n,
+        "segment products, open": line_revenue(U_eval, p, seg_products, demand) / n,
+        "optimal line": line_revenue(U_eval, p, line, demand) / n,
     }
 
 
-def run_fold(R, X, B_true, train, test, Ks, methods=("LC", "k-means"), seed=0):
+def run_fold(R, X, B_true, train, test, Ks, methods=("LC", "k-means"), demand=THRESHOLD, seed=0):
     """Segments and products are chosen on the train respondents and evaluated on the test
     respondents ("realized"). "potential" repeats the same choices using the test respondents'
     own partworths, i.e. as if the firm knew their preferences."""
@@ -40,16 +40,16 @@ def run_fold(R, X, B_true, train, test, Ks, methods=("LC", "k-means"), seed=0):
     B_train = hb(R[train], X, n_iter=4000, burn=1000, seed=seed)["B"].mean(0)
     U_train = B_train @ Zp.T
 
-    rows = [{"K": 1, "method": "-", "strategy": "oracle", "realized": oracle_revenue(U_test, p) / len(test),
-             "potential": oracle_revenue(U_test, p) / len(test)}]
+    oracle = oracle_revenue(U_test, p, demand) / len(test)
+    rows = [{"K": 1, "method": "-", "strategy": "oracle", "realized": oracle, "potential": oracle}]
     for method in methods:
         for K in Ks:
             if K == 1 and method != methods[0]:
                 continue
             lab_tr, lab_te = segment_labels(method, K, R[train], B_train, X, R[test], B_true[test], seed)
             lab_pot, _ = segment_labels(method, K, R[test], B_true[test], X, R[test], B_true[test], seed)
-            real = strategies(U_train, lab_tr, U_test, lab_te, p, K, seed)
-            pot = strategies(U_test, lab_pot, U_test, lab_pot, p, K, seed)
+            real = strategies(U_train, lab_tr, U_test, lab_te, p, K, demand, seed)
+            pot = strategies(U_test, lab_pot, U_test, lab_pot, p, K, demand, seed)
             for s in real:
                 if K == 1 and s != "targeted":
                     continue
@@ -61,7 +61,7 @@ def run_fold(R, X, B_true, train, test, Ks, methods=("LC", "k-means"), seed=0):
     return rows
 
 
-def repeated_cv(R, X, B_true, Ks, n_reps=10, seed=0):
+def repeated_cv(R, X, B_true, Ks, n_reps=10, demand=THRESHOLD, seed=0):
     rng = np.random.default_rng(seed)
     rows = []
     n = len(R)
@@ -69,7 +69,7 @@ def repeated_cv(R, X, B_true, Ks, n_reps=10, seed=0):
         perm = rng.permutation(n)
         halves = [perm[: n // 2], perm[n // 2:]]
         for f in range(2):
-            for row in run_fold(R, X, B_true, halves[1 - f], halves[f], Ks, seed=2 * r + f):
+            for row in run_fold(R, X, B_true, halves[1 - f], halves[f], Ks, demand=demand, seed=2 * r + f):
                 row["fold"] = 2 * r + f
                 rows.append(row)
     return rows
