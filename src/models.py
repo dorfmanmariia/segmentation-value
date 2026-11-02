@@ -70,3 +70,17 @@ def hit_rate(pred, actual):
     # share of respondents whose predicted best profile is among their actually top-rated ones
     best = pred.argmax(1)
     return np.mean(actual[np.arange(len(actual)), best] == actual.max(1))
+
+
+def holdout_splits(X, n_splits=10, n_hide=4, seed=1):
+    # random sets of hidden profiles; keeps only splits where the remaining profiles identify all parameters
+    rng = np.random.default_rng(seed)
+    Z = add_const(X)
+    m = len(Z)
+    splits = []
+    while len(splits) < n_splits:
+        test = np.sort(rng.choice(m, n_hide, replace=False))
+        train = np.setdiff1d(np.arange(m), test)
+        if np.linalg.matrix_rank(Z[train]) == Z.shape[1]:
+            splits.append((train, test))
+    return splits
